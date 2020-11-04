@@ -1,0 +1,89 @@
+#将找出的最大相关性特征存入S中
+#根据找出的最大相关性的特征对剩下的特征进行最小冗余计算
+#以下计算了最小冗余的信息量和条件信息量
+
+S = np.empty([feature_nrows][feature_ncols])
+for j in range(0, feature_nrows):
+    S[j][0] = feature.cell(j, flag).value
+
+
+
+max = 0
+min = 999
+sumk1 = np.empty([feature_nrows][1])
+
+for t in range(0, feature_nrows):
+    if feature.cell(t, i).value > max:
+        max = feature.cell(t, i).value
+    if feature.cell(t, i).value < min:
+        min = feature.cell(t, i).value
+
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min) <= 0.25:
+                r_a[j][k] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                r_a[k][j] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                sum4 = sum4 + r[j][k]
+            else:
+                r_a[j][k] = 0
+                r_a[k][j] = 0
+                # sum4 = sum4 + r[j][k]
+
+        sumk1[j][0] = sum4
+    for j in range(0, feature_nrows):
+        sum5 = sum5 + math.log(sumk1[j][0] / feature_nrows)
+    sum6 = -1 * sum5 / feature_nrows
+    #sum6==H(aj)
+
+sum_5 = 0
+sumk2 = np.empty([feature_nrows][feature_ncols])
+
+for i in range(0, feature_ncols):
+    if (i == flag):
+        i += 1
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min) <= 0.25:
+                r_a2[j][k] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+                r_a2[k][j] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+                sum4 = sum4 + r[j][k]
+            else:
+                r_a2[j][k] = 0
+                r_a2[k][j] = 0
+
+
+
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(S[j, t] - S[k, t]) / abs(max - min) <= 0.25:
+                # r_a1[j][k] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                # r_a1[k][j] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                r_a1[j][k] = 1 - 4 * abs(S[j, t] - S[k, t]) / abs(max - min)
+                r_a1[k][j] = 1 - 4 * abs(S[j, t] - S[k, t]) / abs(max - min)
+                sum4 = sum4 + r[j][k]
+            else:
+                r_a1[j][k] = 0
+                r_a1[k][j] = 0
+        sumk2[j][t] = sum4
+    for j in range(0, feature_nrows):
+        sum3 = 0
+        for k in range(0, feature_nrows):
+            if r_a1[j][k] < r_a2[j][k]:
+                r_new1[j][k] = r_a1[j][k]
+            else:
+                r_new1[j][k] = r_a2[j][k]
+            sum3 = sum3 + abs(r_new1[j][k])
+        sum_5 = sum_5 + math.log(sum3 / sumk2[j][t])
+    # H(ai|aj)
+    sum_6 = -1 * sum_5 / feature_nrows
+
+
+
+
+
+    t += 1
+
+    final_feature -= 1
