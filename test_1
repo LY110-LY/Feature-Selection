@@ -1,0 +1,333 @@
+#基本完成特征选择算法
+#但是现在是2020.11.11，21:05，代码跑了12个小时还在继续，看样子还要很久，还有待解决
+#中间有些print是加上为了显示代码确实在运行的，以至于我不用在傻等
+
+import numpy as np
+import xlrd
+import math
+
+workbook = xlrd.open_workbook(r'SJAFFE_feature.xlsx')
+workbook2 = xlrd.open_workbook(r'SJAFFE_labels.xlsx')
+# print(workbook2.sheet_names())#输出页签名r
+
+feature = workbook.sheet_by_name('features')
+labels = workbook2.sheet_by_name('labels')
+feature_nrows = feature.nrows
+feature_ncols = feature.ncols
+labels_nrows = labels.nrows
+labels_ncols = labels.ncols
+
+rD = np.empty([labels_nrows, labels_nrows])
+r = np.empty([feature_nrows, feature_nrows])
+r_new = np.empty([feature_nrows, feature_nrows])
+r_new1 = np.empty([feature_nrows, feature_nrows])
+r_a = np.empty([feature_nrows, feature_nrows])
+r_a1 = np.empty([feature_nrows, feature_nrows])
+r_a2 = np.empty([feature_nrows, feature_nrows])
+maxC = []
+maxS = []
+final_feature = 34
+t = 0
+
+def fun_maxC(i):
+# for i in range(0, feature_ncols):
+    max = 0
+    min = 999
+    sumk1 = np.empty([feature_nrows, 1])
+    for t in range(0, feature_nrows):
+        if feature.cell(t, i).value > max:
+            max = feature.cell(t, i).value
+        if feature.cell(t, i).value < min:
+            min = feature.cell(t, i).value
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min) <= 0.25:
+                r[j][k] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+                r[k][j] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+                sum4 = sum4 + r[j][k]
+            else:
+                r[j][k] = 0
+                r[k][j] = 0
+                # sum4 = sum4 + r[j][k]
+
+        sumk1[j][0] = sum4
+
+
+    sum6 = 0
+    maxC1 = 0
+    for m in range(0, labels_ncols):
+        for j in range(0, labels_nrows):
+            for k in range(0, labels_nrows):
+                if abs(labels.cell(j, m).value - labels.cell(k, m).value) <= 0.25:
+                    rD[k][j] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+                    rD[j][k] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+                else:
+                    rD[j][k] = 0
+                    rD[k][j] = 0
+        #信息量
+        sum1 = 0
+        sum2 = 0
+        for j in range(0, labels_nrows):
+            sum1 = 0
+            for k in range(0, labels_nrows):
+                sum1 = sum1 + rD[j][k]
+            sum2 = sum2 + math.log(sum1 / labels_nrows)
+        H_RD = -1 * sum2 / labels_nrows
+
+        sum3 = 0
+        sum5 = 0
+        for j in range(0, feature_nrows):
+            sum3 = 0
+            for k in range(0, feature_nrows):
+                if r[j][k] < rD[j][k]:
+                    r_new[j][k] = r[j][k]
+                else:
+                    r_new[j][k] = rD[j][k]
+                sum3 = sum3 + r_new[j][k]
+            sum5 = sum5 + math.log(sum3 / sumk1[j][0])
+        #H(D|B)
+        sum6 = -1 * sum5 / feature_nrows
+        #MI(ai; dj)
+        maxC1 = maxC1 + (H_RD - sum6)
+    maxC2 = maxC1 / labels_ncols
+    # maxC.append(maxC2)
+    return maxC2
+
+
+
+def fun_Haj(flag):
+    max = 0
+    min = 999
+    sumk1 = np.empty([feature_nrows, 1])
+    for t in range(0, feature_nrows):
+        if feature.cell(t, flag).value > max:
+            max = feature.cell(t, flag).value
+        if feature.cell(t, flag).value < min:
+            min = feature.cell(t, flag).value
+
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min) <= 0.25:
+                r_a[j][k] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                r_a[k][j] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                sum4 = sum4 + r[j][k]
+            else:
+                r_a[j][k] = 0
+                r_a[k][j] = 0
+                # sum4 = sum4 + r[j][k]
+
+        sumk1[j][0] = sum4
+    for j in range(0, feature_nrows):
+        sum5 = sum5 + math.log(sumk1[j][0] / feature_nrows)
+    sum6 = -1 * sum5 / feature_nrows
+    return sum6
+    #sum6==H(aj)
+
+
+
+# sum_5 = 0
+# sumk2 = np.empty([feature_nrows, feature_ncols])
+# a = 0
+
+#特征之间的关系矩阵
+def Ra(i, j, k):
+    max = 0
+    min = 999
+    for t in range(0, feature_nrows):
+        if feature.cell(t, i).value > max:
+            max = feature.cell(t, i).value
+        if feature.cell(t, i).value < min:
+            min = feature.cell(t, i).value
+    if abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min) <= 0.25:
+        r_a2[j][k] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+        r_a2[k][j] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+        # sum4 = sum4 + r[j][k]
+    else:
+        r_a2[j][k] = 0
+        r_a2[k][j] = 0
+    return r_a2
+
+#特征与标签之间的关系矩阵
+def Rad(m, j, k):
+    if abs(labels.cell(j, m).value - labels.cell(k, m).value) <= 0.25:
+        rD[k][j] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+        rD[j][k] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+    else:
+        rD[j][k] = 0
+        rD[k][j] = 0
+    return rD
+
+
+
+if __name__=="__main__":
+    max = 0
+    flag_MC = 0
+    for i in range(0, feature_ncols):
+        maxCC2 = fun_maxC(i)
+        print(maxCC2)
+        if maxCC2 > max:
+            max = maxCC2
+            flag_MC = i
+    print("LALALA")
+    print(flag_MC)
+    # haj = fun_Haj(flag_MC)
+
+    # maxC_ = 0
+    # flag = 0
+    # sum5 = 0
+    # sum6 = 0
+    # # 找到maxC最大的特征(也就是最大相关性)
+    # for s in range(0, len(maxC)):
+    #     if maxC[s] > maxC_:
+    #         maxC_ = maxC[s]
+    #         flag = s
+
+
+    # S = np.empty([feature_nrows][feature_ncols])
+    # for j in range(0, feature_nrows):
+    #     S[j][0] = feature.cell(j, flag_MC).value
+
+    a_3 = np.empty([feature_ncols, feature_ncols])
+    for i in range(0, feature_ncols):
+        # def fun_Ha(i):
+        a_new = np.empty([feature_nrows, feature_nrows])
+        sum_b = 0
+        for j in range(0, feature_nrows):
+            for k in range(0, feature_nrows):
+                a_1 = Ra(i, j, k)
+        # for s in range(i + 1, feature_ncols):
+        print(a_1)
+        print("LALALALALALAL")
+        for s in range(0, feature_ncols):
+            sum_a = 0
+            for j in range(0, feature_nrows):
+                for k in range(0, feature_nrows):
+                    a_2 = Ra(s, j, k)
+            print(a_2)
+            print("HEIHEI")
+            for j in range(0, feature_nrows):
+                for k in range(0, feature_nrows):
+                    if a_1[j][k] < a_2[j][k]:
+                        a_new[j][k] = a_1[j][k]
+                    else:
+                        a_new[j][k] = a_2[j][k]
+            print(a_new)
+            print("LALALA")
+            for j in range(0, feature_nrows):
+                sum_c = 0
+                for k in range(0, feature_nrows):
+                    sum_a = sum_a + a_new[j][k]
+                    sum_b = sum_b + a_1[j][k]
+                sum_c = sum_c + math.log(sum_a / sum_b)
+            sum_d = -1 * sum_c / feature_nrows
+            a_3[i][s] = sum_d
+            # a_3[s][i] = sum_d
+    print("LALALA")
+    print(a_3)
+    print("aaaaaaaaaaaL")
+    a_4 = np.empty([feature_ncols, feature_ncols])
+    for i in range(0, feature_ncols):
+        for j in range(0, feature_ncols):
+            a_4[i][j] = fun_Haj(i) - a_3[j][i]
+    print(a_4)
+
+    haj = fun_Haj(flag_MC)
+    S = np.empty([feature_nrows, feature_ncols])
+    for j in range(0, feature_nrows):
+        S[j][0] = feature.cell(j, flag_MC).value
+
+    s = 0
+    while s < 5:
+        s += 1
+        print(s)
+        flag_new = []
+        flag_new.append(flag_MC)
+        sum_1 = 0
+        # for i in range(0, s):
+        max_1 = 0
+        for j in range(0, feature_ncols):
+            max_1 = 0
+            for k in range(0, feature_ncols):
+                sum_1 = 0
+                for flag in range(0, s):
+                    #F和S的增减问题再看一下
+                    if j == flag_new[flag]:
+                        sum_1 = sum_1 + a_4[j][k]
+            sum_1 = sum_1 / s
+            if sum_1 > max_1:
+                max_1 = sum_1
+                k_new = k
+        flag_new.append(k_new)
+        for m in range(0, feature_nrows):
+            S[m][s] = feature.cell(m, k_new).value
+    print(S)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#
+#
+# for i in range(0, feature_ncols):
+#     #排除最大相关性选出的那个特征
+#     if (i == flag):
+#         i += 1
+#         # a += 1
+#
+#     #对每一个属于F但又不属于S的特征做关系运算
+#     for j in range(0, feature_nrows):
+#         sum4 = 0
+#         for k in range(0, feature_nrows):
+#             Ra(i, j, k)
+#
+#
+#     #对S里的已选出的特征进行相关性运算
+#     for m in range(0, t):
+#         maxS1 = 0
+#         for j in range(0, feature_nrows):
+#             sum4 = 0
+#             for k in range(0, feature_nrows):
+#                 if abs(S[j, t] - S[k, t]) / abs(max - min) <= 0.25:
+#                     # r_a1[j][k] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+#                     # r_a1[k][j] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+#                     r_a1[j][k] = 1 - 4 * abs(S[j, t] - S[k, t]) / abs(max - min)
+#                     r_a1[k][j] = 1 - 4 * abs(S[j, t] - S[k, t]) / abs(max - min)
+#                     sum4 = sum4 + r[j][k]
+#                 else:
+#                     r_a1[j][k] = 0
+#                     r_a1[k][j] = 0
+#             sumk2[j][t] = sum4
+#         for j in range(0, feature_nrows):
+#             sum3 = 0
+#             for k in range(0, feature_nrows):
+#                 if r_a1[j][k] < r_a2[j][k]:
+#                     r_new1[j][k] = r_a1[j][k]
+#                 else:
+#                     r_new1[j][k] = r_a2[j][k]
+#                 sum3 = sum3 + r_new1[j][k]
+#             sum_5 = sum_5 + math.log(sum3 / sumk2[j][t])
+#         # H(ai|aj)
+#         sum_6 = -1 * sum_5 / feature_nrows
+#         t += 1
+#         maxS1 = maxS1 + (sum6 - sum_6)
+#         maxS2 = maxS1 / t
+#         # return maxS2
+#
