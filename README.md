@@ -7,4 +7,6 @@ third_day
 将部分for循环转为def函数形式
 fourth_day
 基本完成代码
+2020-11-16
+修改完成，运行正确
 
