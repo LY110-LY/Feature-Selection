@@ -1,0 +1,382 @@
+#在最大相关性与最小冗余的基础上添加了最大化条件特征冗余
+#解决了已选特征与标签集并集合成一个新的特征集与未选特征之间的基于模糊粗糙集的互信息的计算
+
+
+
+
+import numpy as np
+import xlrd
+import math
+import pandas as pd
+from sklearn.model_selection import KFold
+
+
+
+
+workbook = xlrd.open_workbook(r'SJAFFE_feature_test.xlsx')
+workbook2 = xlrd.open_workbook(r'SJAFFE_labels_test.xlsx')
+# print(workbook2.sheet_names())#输出页签名r
+feature = workbook.sheet_by_name('features')
+labels = workbook2.sheet_by_name('labels')
+
+labels_pd = pd.read_excel('SJAFFE_labels_test.xlsx', header=None)
+df_labels = pd.DataFrame(labels_pd)
+
+feature_nrows = feature.nrows
+feature_ncols = feature.ncols
+labels_nrows = labels.nrows
+labels_ncols = labels.ncols
+
+
+rD = np.empty([labels_nrows, labels_nrows])
+r = np.empty([feature_nrows, feature_nrows])
+r_new = np.empty([feature_nrows, feature_nrows])
+r_new1 = np.empty([feature_nrows, feature_nrows])
+r_a = np.empty([feature_nrows, feature_nrows])
+r_a1 = np.empty([feature_nrows, feature_nrows])
+r_a2 = np.empty([feature_nrows, feature_nrows])
+maxC = []
+maxS = []
+# final_feature = 34
+# t = 0
+
+def fun_maxC(i):
+# for i in range(0, feature_ncols):
+    max = 0
+    min = 999
+    sumk1 = np.empty([feature_nrows, 1])
+    for t in range(0, feature_nrows):
+        if feature.cell(t, i).value > max:
+            max = feature.cell(t, i).value
+        if feature.cell(t, i).value < min:
+            min = feature.cell(t, i).value
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min) <= 0.25:
+                r[j][k] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+                r[k][j] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min)
+                sum4 = sum4 + r[j][k]
+            else:
+                r[j][k] = 0
+                r[k][j] = 0
+                # sum4 = sum4 + r[j][k]
+
+        sumk1[j][0] = sum4
+
+
+    sum6 = 0
+    maxC1 = 0
+    for m in range(0, labels_ncols):
+        for j in range(0, labels_nrows):
+            for k in range(0, labels_nrows):
+                if abs(labels.cell(j, m).value - labels.cell(k, m).value) <= 0.25:
+                    rD[k][j] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+                    rD[j][k] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+                else:
+                    rD[j][k] = 0
+                    rD[k][j] = 0
+        #信息量
+        sum1 = 0
+        sum2 = 0
+        for j in range(0, labels_nrows):
+            sum1 = 0
+            for k in range(0, labels_nrows):
+                sum1 = sum1 + rD[j][k]
+            sum2 = sum2 + math.log(sum1 / labels_nrows)
+        H_RD = -1 * sum2 / labels_nrows
+
+        sum3 = 0
+        sum5 = 0
+        for j in range(0, feature_nrows):
+            sum3 = 0
+            for k in range(0, feature_nrows):
+                if r[j][k] < rD[j][k]:
+                    r_new[j][k] = r[j][k]
+                else:
+                    r_new[j][k] = rD[j][k]
+                sum3 = sum3 + r_new[j][k]
+            sum5 = sum5 + math.log(sum3 / sumk1[j][0])
+        #H(D|B)
+        sum6 = -1 * sum5 / feature_nrows
+        #MI(ai; dj)
+        maxC1 = maxC1 + (H_RD - sum6)
+    maxC2 = maxC1 / labels_ncols
+    # maxC.append(maxC2)
+    return maxC2
+
+def fun_H(m):
+    # for m in range(0, labels_ncols):
+    for j in range(0, labels_nrows):
+        for k in range(0, labels_nrows):
+            if abs(labels.cell(j, m).value - labels.cell(k, m).value) <= 0.25:
+                rD[k][j] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+                rD[j][k] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+            else:
+                rD[j][k] = 0
+                rD[k][j] = 0
+    #信息量
+    sum1 = 0
+    sum2 = 0
+    for j in range(0, labels_nrows):
+        sum1 = 0
+        for k in range(0, labels_nrows):
+            sum1 = sum1 + rD[j][k]
+        sum2 = sum2 + math.log(sum1 / labels_nrows)
+    H_RD = -1 * sum2 / labels_nrows
+    return H_RD
+
+
+def fun_Haj(flag):
+    max = 0
+    min = 999
+    sumk1 = np.empty([feature_nrows, 1])
+    for t in range(0, feature_nrows):
+        if feature.cell(t, flag).value > max:
+            max = feature.cell(t, flag).value
+        if feature.cell(t, flag).value < min:
+            min = feature.cell(t, flag).value
+
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min) <= 0.25:
+                r_a[j][k] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                r_a[k][j] = 1 - 4 * abs(feature.cell(j, flag).value - feature.cell(k, flag).value) / abs(max - min)
+                sum4 = sum4 + r_a[j][k]
+            else:
+                r_a[j][k] = 0
+                r_a[k][j] = 0
+                # sum4 = sum4 + r[j][k]
+
+        sumk1[j][0] = sum4
+    sum5 = 0
+    for j in range(0, feature_nrows):
+        sum5 = sum5 + math.log(sumk1[j][0] / feature_nrows)
+    sum6 = -1 * sum5 / feature_nrows
+    return sum6
+    #sum6==H(aj)
+
+
+#特征之间的关系矩阵
+def RaS(i, j, k):
+    max = 0
+    min = 999
+    for t in range(0, feature_nrows):
+        if S[t][i] > max:
+            max = S[t][i]
+        if S[t][i] < min:
+            min = S[t][i]
+    # if abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min) <= 0.25:
+    if S[j][i] - S[k][i] / abs(max - min) <= 0.25:
+        r_a2[j][k] = 1 - 4 * S[j][i] - S[k][i] / abs(max - min)
+        r_a2[k][j] = 1 - 4 * S[j][i] - S[k][i] / abs(max - min)
+        # sum4 = sum4 + r[j][k]
+    else:
+        r_a2[j][k] = 0
+        r_a2[k][j] = 0
+    return r_a2
+
+def Ra_new(i, j, k):
+    max = 0
+    min = 999
+    for t in range(0, feature_nrows):
+        if feature_new[t][i] > max:
+            max = feature_new[t][i]
+        if feature_new[t][i] < min:
+            min = feature_new[t][i]
+    # if abs(feature.cell(j, i).value - feature.cell(k, i).value) / abs(max - min) <= 0.25:
+    if feature_new[j][i] - feature_new[k, i] / abs(max - min) <= 0.25:
+        r_a2[j][k] = 1 - 4 * feature_new[j][i] - feature_new[k][i] / abs(max - min)
+        r_a2[k][j] = 1 - 4 * feature_new[j][i] - feature_new[k][i] / abs(max - min)
+        # sum4 = sum4 + r[j][k]
+    else:
+        r_a2[j][k] = 0
+        r_a2[k][j] = 0
+    return r_a2
+
+
+#特征与标签之间的关系矩阵
+def Rad(m, j, k):
+    if abs(labels.cell(j, m).value - labels.cell(k, m).value) <= 0.25:
+        rD[k][j] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+        rD[j][k] = 1 - 4 * abs(labels.cell(j, m).value - labels.cell(k, m).value)
+    else:
+        rD[j][k] = 0
+        rD[k][j] = 0
+    return rD
+
+def MI(i):
+    # if i in flag_cov:
+    for m in range(0, feature_nrows):
+        for n in range(0, feature_nrows):
+            a_1 = RaS(i, m, n)
+    haj = fun_Haj(i)
+    for j in range(0, feature_ncols):
+        if j not in flag_cov:
+            for m in range(0, feature_nrows):
+                for n in range(0, feature_nrows):
+                    a_2 = Ra_new(j, m, n)
+            for m in range(0, feature_nrows):
+                for n in range(0, feature_nrows):
+                    if a_1[m][n] < a_2[m][n]:
+                        a_new[m][n] = a_1[m][n]
+                    else:
+                        a_new[m][n] = a_2[m][n]
+            sum_c = 0
+            for m in range(0, feature_nrows):
+                sum_a = 0
+                sum_b = 0
+                for n in range(0, feature_nrows):
+                    sum_a = sum_a + a_new[m][n]
+                    sum_b = sum_b + a_2[m][n]
+                sum_c = sum_c + math.log(sum_a / sum_b)
+            sum_d = -1 * sum_c / feature_nrows
+            mi = haj - sum_d
+            a_4[i][j] = mi
+    return a_4
+
+def MI_XX(l):
+    max = 0
+    min = 999
+    sumk1 = np.empty([feature_nrows, 1])
+    for t in range(0, feature_nrows):
+        if S_new[t][l] > max:
+            max = S_new[t][l]
+        if S_new[t][l] < min:
+            min = S_new[t][l]
+    for j in range(0, feature_nrows):
+        sum4 = 0
+        for k in range(0, feature_nrows):
+            if abs(S_new[j][l] - S_new[k][l]) / abs(max - min) <= 0.25:
+                r[j][k] = 1 - 4 * abs(S_new[j][l] - S_new[k][l]) / abs(
+                    max - min)
+                r[k][j] = 1 - 4 * abs(S_new[j][l] - S_new[k][l]) / abs(
+                    max - min)
+                sum4 = sum4 + r[j][k]
+            else:
+                r[j][k] = 0
+                r[k][j] = 0
+                # sum4 = sum4 + r[j][k]
+
+        sumk1[j][0] = sum4
+
+    sum6 = 0
+    maxC1 = 0
+
+    for j in range(0, labels_nrows):
+        for k in range(0, labels_nrows):
+            if abs(feature.cell(j, i).value - feature.cell(k, i).value) <= 0.25:
+                rD[k][j] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value)
+                rD[j][k] = 1 - 4 * abs(feature.cell(j, i).value - feature.cell(k, i).value)
+            else:
+                rD[j][k] = 0
+                rD[k][j] = 0
+    # 信息量
+    sum1 = 0
+    sum2 = 0
+    for j in range(0, feature_nrows):
+        sum1 = 0
+        for k in range(0, feature_nrows):
+            sum1 = sum1 + rD[j][k]
+        sum2 = sum2 + math.log(sum1 / feature_nrows)
+    H_RD = -1 * sum2 / feature_nrows
+
+    sum3 = 0
+    sum5 = 0
+    for j in range(0, feature_nrows):
+        sum3 = 0
+        for k in range(0, feature_nrows):
+            if r[j][k] < rD[j][k]:
+                r_new[j][k] = r[j][k]
+            else:
+                r_new[j][k] = rD[j][k]
+            sum3 = sum3 + r_new[j][k]
+        sum5 = sum5 + math.log(sum3 / sumk1[j][0])
+    # H(D|B)
+    sum6 = -1 * sum5 / feature_nrows
+    # MI(ai; dj)
+    return H_RD - sum6
+
+
+
+if __name__=="__main__":
+    max = 0
+    flag_MC = 0
+    flag_maxC = []
+    for i in range(0, feature_ncols):
+        maxCC2 = fun_maxC(i)
+        flag_maxC.append(maxCC2)
+        print(maxCC2)
+        if maxCC2 > max:
+            max = maxCC2
+            flag_MC = i
+    print("LALALA")
+    print(flag_MC)
+    S = np.zeros([feature_nrows, feature_ncols])
+    for j in range(0, feature_nrows):
+        S[j][flag_MC] = feature.cell(j, flag_MC).value
+    flag_cov = []
+    flag_cov.append(flag_MC)
+    s = 0
+    print(S)
+    while s < 5:
+        s += 1
+        feature_new = np.zeros([feature_nrows, feature_ncols])
+        S_new1 = np.zeros([1, feature_ncols])
+        t = 0
+        S_1 = pd.DataFrame(S)
+        print(S_1)
+        print(S_1[9])
+        #i是每次从S中选一个来计算，但是我代码这样的话就是还没选啊
+        # S_new = pd.concat([S_1[i], df_labels], axis=1, ignore_index=True)
+        # S_new = np.array(S_new)
+        for i in range(0, feature_ncols):
+            if i not in flag_cov:
+                max_new = 0
+                maxC1 = 0
+                for l_pre in range(0, len(S_1)):
+                    if l_pre in flag_cov:
+                        S_new = pd.concat([S_1[l_pre], df_labels], axis=1, ignore_index=True)
+                        S_new = np.array(S_new)
+                        print(S_new)
+                        print(np.shape(S_new)[1])
+                        for l in range(0, np.shape(S_new)[1]):
+                            MI_snew = MI_XX(l)
+                            maxC1 = maxC1 + MI_snew
+                        max_new = max_new + maxC1
+                S_new1[0][i] = max_new
+                # feature_new[:, t] = feature[:, 0:feature_ncols]
+                for m in range(0, feature_nrows):
+                    feature_new[m][i] = feature.cell(m, i).value
+                t += 1
+            # else:
+            #     t -= 1
+        # print(feature_new)
+        a_new = np.empty([feature_nrows, feature_nrows])
+        a_3 = np.empty([feature_ncols, feature_ncols])
+        a_4 = np.zeros([feature_ncols, feature_ncols])
+        a_4new = np.zeros([feature_ncols, feature_ncols])
+        sum = 0
+        for i in range(0, feature_ncols):
+            if i in flag_cov:
+                a_4 = MI(i)
+        max_a = -999
+        flag_a = 0
+        for i in range(0, feature_ncols):
+            for j in range(0, feature_ncols):
+                a_4new[0][i] = a_4new[0][i] + a_4[j][i]
+            a_4new[0][i] = flag_maxC[i] - a_4new[0][i] + S_new1[0][i]
+        # print(a_4new)
+            if a_4new[0][i] > max_a and i not in flag_cov:
+                max_a = a_4new[0][i]
+                flag_a = i
+        # print(a_4new)
+        # print(max_a)
+        for j in range(0, feature_nrows):
+            S[j][flag_a] = feature_new[j][flag_a]
+        # print(flag_a)
+        flag_cov.append(flag_a)
+    print(flag_cov)
+    print(S)
+
